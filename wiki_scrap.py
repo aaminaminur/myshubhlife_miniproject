@@ -1,22 +1,16 @@
-# Necessary imports
-# Here BeautifulSoup from bs4 library is used
-import requests
+from flask import Flask, request, jsonify
+from flask_pymongo import PyMongo
 import bs4
-
 import pymongo
+import requests
+app = Flask(__name__)
 
-dburl = "mongodb://localhost:27017/"
-mydbclient = pymongo.MongoClient(dburl)
-testdatabase = mydbclient["wikiscrap"]
-testcollection = testdatabase["keywords"]
-
-# Hardcoding the URL, will work to take it dynamically later
-url = "https://en.wikipedia.org/wiki/Sachin_Tendulkar"
-# Making request and making soup using BeautifulSoup and html-parser
-# print(type(soup))
-# Storing all URLS in an Array named urls
 titleAndLink = []
-titleAndLink.append(["dummy", url])
+
+app.config['MONGO_DBNAME'] = 'wikiscrap'
+app.config['MONGO_URI'] = 'mongodb://localhost:27017/wikiscrap'
+
+mongo = PyMongo(app)
 
 
 def scrapURL(url):
@@ -25,33 +19,68 @@ def scrapURL(url):
     for link in soup.select('a'):
         titleName = link.get('title')
         refLink = link.get('href')
-        # There are many links without title (i.e. Title coming out as None).
-        # So, eliminating links without Title
         if titleName:
             templink = "https://wikipedia.org"+refLink
             titleAndLink.append([titleName, templink])
+            testcollection.insert_one(
+                {"keyword": titleName, "reflink": templink})
 
 
-# if titleName:
-#     templink = "https://wikipedia.org"+refLink
-#     titleAndLink.append({"_id": titleName, "refLink": templink})
+dburl = "mongodb://localhost:27017/"
+mydbclient = pymongo.MongoClient(dburl)
+testdatabase = mydbclient["wikiscrap"]
+testdatabase.drop_collection("keywords")
+testcollection = testdatabase["keywords"]
 
-i = 0
-while len(titleAndLink) < 5000:
-    scrapURL(titleAndLink[i][1])
-    i += 1
-# Printing all URLS for test purpose
-print(len(titleAndLink))
 
-linksToStoreInDB = []
+@app.route('/scrapurl', methods=["POST"])
+def scrap_wiki_url():
+    req_json = request.json
+    scrapurl = req_json['scrapurl']
+    titleAndLink.append(["dummy", scrapurl])
+    i = 0
+    while len(titleAndLink) < 5000:
+        scrapURL(titleAndLink[i][1])
+        i += 1
 
-for items in titleAndLink:
-    dict = {"_id": items[0], "reflink": items[1]}
-    linksToStoreInDB.append(dict)
+    return jsonify({"response": "Entered url " + scrapurl + " is scrapped and data saved in database!!!"})
 
-# print(linksToStoreInDB)
 
-x = testcollection.insert_many(linksToStoreInDB)
+@app.route('/allurls', methods=['GET'])
+def get_all_urls():
+    keyword = mongo.db.keywords
+    output = []
+    for item in keyword.find():
+        output.append({'keyword': item['keyword'], 'reflink': item['reflink']})
+    return jsonify({'result': output})
 
-if x:
-    print("Success!!!")
+
+@app.route('/allurls/<searchkey>', methods=["GET"])
+def get_related_keywords(searchkey):
+    keyword = mongo.db.keywords
+    output = []
+    searchkey = searchkey.lower()
+    for item in keyword.find():
+        output.append({'keyword': item['keyword'], 'reflink': item['reflink']})
+    if not output:
+        output = "No result found!!!"
+        return jsonify({'result': output})
+
+    finalResult = []
+
+    for item in output:
+        if searchkey in item['keyword'].lower():
+            finalResult.append(
+                {'keyword': item['keyword'], 'reflink': item['reflink']})
+
+    displayResult = []
+
+    for item in finalResult:
+        if item not in displayResult and len(displayResult) < 10:
+            displayResult.append(item)
+
+    return jsonify({'result': displayResult})
+
+
+if __name__ == "__main__":
+    app.run(port=5000, debug=True)
