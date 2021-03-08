@@ -18,6 +18,9 @@ I can display all the database contents, I will implement filters.
 
 Day3:
 
-Will work on adding all 5000+ content to db
-Will look to implement filter to display 10 most frequent
-Watched some video on youtube on JWT web tocken authentication, I will attempt it once the higher priority tasks done.
+Worked on adding 5000+ content to db.
+Worked on to take URL dynamically using POST method.
+Tried using Mongo DB filter using createIndex, but faced some errors.
+Implemented the filter to display top 10 using Python Algorithm.
+Tried capping the DB size, but I need to learn to implement it dynamically.
+Explored about JWT Token, faced some issue with jwt.decode method. I need to explore that deeper in future.
